@@ -1,0 +1,55 @@
+[package]
+name = "gpui-desktop"
+version = "0.1.0"
+edition = "2021"
+authors = ["najmus-sakib-hossain"]
+description = "🏗️ Single-Binary GPUI Desktop App — Pure Rust multimedia powerhouse"
+license = "MIT"
+
+[[bin]]
+name = "gpui-desktop"
+path = "src/main.rs"
+
+[dependencies]
+# ═══════════════════ GPUI CORE ═══════════════════
+gpui = { git = "https://github.com/zed-industries/zed", package = "gpui" }
+
+# ═══════════════════ VIDEO ═══════════════════════
+# rav1d       = "1.1"                                          # AV1 decode (pure Rust)
+# rav1e       = "0.8"                                          # AV1 encode (pure Rust)
+# openh264    = "0.6"                                          # H.264 (static link, auto-downloads)
+symphonia   = { version = "0.5", features = ["all"] }        # Demux + audio decode (pure Rust)
+# muxide      = "0.1"                                          # MP4 mux (pure Rust)
+
+# ═══════════════════ 3D ═════════════════════════
+wgpu        = "24"                                            # GPU API (pure Rust)
+glam        = "0.29"                                          # 3D math (pure Rust)
+bytemuck    = { version = "1", features = ["derive"] }        # Safe byte casting
+
+# ═══════════════════ AUDIO ═══════════════════════
+rodio       = "0.19"                                          # Playback (pure Rust)
+cpal        = "0.16"                                          # Low-level audio I/O (pure Rust)
+
+# ═══════════════════ PDF ═════════════════════════
+# hayro       = "0.1"                                          # PDF render → bitmap (pure Rust)
+genpdf      = "0.3"                                           # PDF generation (pure Rust)
+printpdf    = "0.7"                                           # Low-level PDF (pure Rust)
+
+# ═══════════════════ DOCUMENTS ═══════════════════
+# docx-rs     = "0.4"                                          # DOCX read/write (pure Rust)
+calamine    = "0.26"                                          # Excel/ODS (pure Rust)
+
+# ═══════════════════ TYPESETTING / LATEX ═════════
+# typst       = "0.14"                                         # Typesetting engine (pure Rust)
+# typst-render = "0.14"                                        # Typst → bitmap (pure Rust)
+# katex       = "0.4"                                          # LaTeX math → SVG (pure Rust)
+
+# ═══════════════════ CHARTS ══════════════════════
+plotters        = "0.3"                                       # Charts (pure Rust)
+plotters-bitmap = "0.3"                                       # Charts → bitmap (pure Rust)
+
+# ═══════════════════ UTILITIES ═══════════════════
+resvg       = "0.44"                                          # SVG → bitmap (pure Rust)
+image       = "0.25"                                          # Image processing (pure Rust)
+log         = "0.4"
+env_logger  = "0.11"
