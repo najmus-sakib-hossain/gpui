@@ -1,7 +1,7 @@
 //! 📝 Document Viewer Component
 //!
 //! Strategy: `docx-rs` parses DOCX → extracts text/styles → renders with GPUI div elements.
-//! Pipeline: Parse → extract text/styles/images → custom GPUI layout elements
+//! Pipeline: DOCX → parse → extract text/styles/images → custom GPUI layout elements.
 
 use docx_rs::*;
 use gpui::*;
@@ -51,7 +51,7 @@ impl Render for DocView {
                 div()
                     .text_color(rgb(0xcdd6f4))
                     .text_xl()
-                    .child("📝 Document Viewer (docx-rs \u2014 pure Rust)"),
+                    .child("📝 Document Viewer (docx-rs — pure Rust)"),
             )
             .child(
                 // Document content area

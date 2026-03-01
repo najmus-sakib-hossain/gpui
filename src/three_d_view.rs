@@ -27,7 +27,7 @@ pub struct ThreeDView {
 }
 
 impl ThreeDView {
-    pub fn new(window: &Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(_window: &Window, cx: &mut Context<Self>) -> Self {
         let width = 800u32;
         let height = 600u32;
         let frame = Arc::new(Mutex::new(None));
@@ -74,7 +74,7 @@ impl ThreeDView {
 }
 
 impl Render for ThreeDView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let frame = self.rendered_frame.lock().unwrap();
 
         div()
@@ -146,7 +146,7 @@ impl Render for ThreeDView {
                     .child(
                         div()
                             .text_color(rgb(0xa6adc8))
-                            .child(format!("Angle: {:.1}\u00b0", self.rotation_angle.to_degrees())),
+                            .child(format!("Angle: {:.1}\u{00b0}", self.rotation_angle.to_degrees())),
                     ),
             )
     }
@@ -236,6 +236,34 @@ async fn render_3d_scene(
         Vertex { position: [-0.5, -0.5, -0.5], color: [1.0, 0.0, 1.0] },
         Vertex { position: [ 0.5,  0.5, -0.5], color: [1.0, 1.0, 1.0] },
         Vertex { position: [ 0.5, -0.5, -0.5], color: [0.5, 0.5, 0.5] },
+        // Right face
+        Vertex { position: [ 0.5, -0.5,  0.5], color: [0.0, 1.0, 0.0] },
+        Vertex { position: [ 0.5, -0.5, -0.5], color: [0.5, 0.5, 0.5] },
+        Vertex { position: [ 0.5,  0.5, -0.5], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [ 0.5, -0.5,  0.5], color: [0.0, 1.0, 0.0] },
+        Vertex { position: [ 0.5,  0.5, -0.5], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [ 0.5,  0.5,  0.5], color: [0.0, 0.0, 1.0] },
+        // Left face
+        Vertex { position: [-0.5, -0.5, -0.5], color: [1.0, 0.0, 1.0] },
+        Vertex { position: [-0.5, -0.5,  0.5], color: [1.0, 0.0, 0.0] },
+        Vertex { position: [-0.5,  0.5,  0.5], color: [1.0, 1.0, 0.0] },
+        Vertex { position: [-0.5, -0.5, -0.5], color: [1.0, 0.0, 1.0] },
+        Vertex { position: [-0.5,  0.5,  0.5], color: [1.0, 1.0, 0.0] },
+        Vertex { position: [-0.5,  0.5, -0.5], color: [0.0, 1.0, 1.0] },
+        // Top face
+        Vertex { position: [-0.5,  0.5,  0.5], color: [1.0, 1.0, 0.0] },
+        Vertex { position: [ 0.5,  0.5,  0.5], color: [0.0, 0.0, 1.0] },
+        Vertex { position: [ 0.5,  0.5, -0.5], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [-0.5,  0.5,  0.5], color: [1.0, 1.0, 0.0] },
+        Vertex { position: [ 0.5,  0.5, -0.5], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [-0.5,  0.5, -0.5], color: [0.0, 1.0, 1.0] },
+        // Bottom face
+        Vertex { position: [-0.5, -0.5, -0.5], color: [1.0, 0.0, 1.0] },
+        Vertex { position: [ 0.5, -0.5, -0.5], color: [0.5, 0.5, 0.5] },
+        Vertex { position: [ 0.5, -0.5,  0.5], color: [0.0, 1.0, 0.0] },
+        Vertex { position: [-0.5, -0.5, -0.5], color: [1.0, 0.0, 1.0] },
+        Vertex { position: [ 0.5, -0.5,  0.5], color: [0.0, 1.0, 0.0] },
+        Vertex { position: [-0.5, -0.5,  0.5], color: [1.0, 0.0, 0.0] },
     ];
 
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

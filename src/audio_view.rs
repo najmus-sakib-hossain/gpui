@@ -1,14 +1,13 @@
 //! 🔊 Audio Player Component
 //!
 //! Strategy: `rodio` + `symphonia` for decode & playback. UI controls via GPUI.
-//! Talks directly to OS audio APIs — CoreAudio / WASAPI / ALSA. Zero user deps.
+//! Talks directly to OS-native audio APIs — CoreAudio / WASAPI / ALSA.
 
 use gpui::*;
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::time::Duration;
 
 pub struct AudioPlayerView {
     sink: Option<Arc<Sink>>,
@@ -98,7 +97,7 @@ impl AudioPlayerView {
 }
 
 impl Render for AudioPlayerView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let vol_pct = (self.volume * 100.0) as u32;
 
         div()

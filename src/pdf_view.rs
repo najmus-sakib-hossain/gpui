@@ -1,7 +1,7 @@
 //! 📄 PDF Viewer Component
 //!
 //! Strategy: `hayro` renders PDF pages to PNG bitmaps → GPUI image element.
-//! 100% pure Rust. No PDFium. No C deps. Compiles right into your binary.
+//! 100% pure Rust. No PDFium. No C deps.
 
 use gpui::*;
 use image::RgbaImage;
@@ -70,7 +70,7 @@ impl PdfView {
 }
 
 impl Render for PdfView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let pages = self.pages.lock().unwrap();
 
         div()
@@ -82,7 +82,7 @@ impl Render for PdfView {
                 div()
                     .text_color(rgb(0xcdd6f4))
                     .text_xl()
-                    .child("📄 PDF Viewer (hayro \u2014 pure Rust)"),
+                    .child("📄 PDF Viewer (hayro — pure Rust)"),
             )
             .child(
                 // PDF page display
