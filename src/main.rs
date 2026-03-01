@@ -105,13 +105,13 @@ impl Render for AppRoot {
                     .p_4()
                     .overflow_y_scroll()
                     .child(match self.current_tab {
-                        Tab::Video  => div().child("🎬 Video Player \u2014 symphonia + openh264 H.264 decoder with frame-by-frame playback"),
-                        Tab::ThreeD => div().child("🧊 3D Renderer \u2014 wgpu off-screen colored cube with WGSL shaders + rotation controls"),
-                        Tab::Audio  => div().child("🔊 Audio Player \u2014 rodio + symphonia decode & playback with volume bar"),
-                        Tab::Pdf    => div().child("📄 PDF Viewer \u2014 hayro pure Rust renderer with page-by-page navigation"),
-                        Tab::Doc    => div().child("📝 Document Viewer \u2014 docx-rs DOCX parser with heading/bold extraction"),
-                        Tab::Latex  => div().child("📐 LaTeX / Typst Renderer \u2014 typst compiler + katex math, split source/output"),
-                        Tab::Chart  => div().child("📊 Chart Renderer \u2014 plotters line/bar/scatter/area to in-memory bitmap"),
+                        Tab::Video  => div().child("Video Player — see VideoPlayerView"),
+                        Tab::ThreeD => div().child("3D Renderer — see ThreeDView"),
+                        Tab::Audio  => div().child("Audio Player — see AudioPlayerView"),
+                        Tab::Pdf    => div().child("PDF Viewer — see PdfView"),
+                        Tab::Doc    => div().child("Doc Viewer — see DocView"),
+                        Tab::Latex  => div().child("LaTeX Renderer — see LatexView"),
+                        Tab::Chart  => div().child("Chart Renderer — see ChartView"),
                     }),
             )
     }
