@@ -9,6 +9,7 @@ use gpui::*;
 use gpui_component::StyledExt;
 
 mod bitmap_utils;
+mod remote;
 mod video_view;
 mod three_d_view;
 mod audio_view;
@@ -68,11 +69,23 @@ impl AppRoot {
     fn new(window: &Window, cx: &mut Context<Self>) -> Self {
         Self {
             current_tab: Tab::Chart,
-            video_view:   cx.new(|cx| VideoPlayerView::new("",  window, cx)),
+            video_view:   cx.new(|cx| VideoPlayerView::new(
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                window, cx,
+            )),
             three_d_view: cx.new(|cx| ThreeDView::new(window, cx)),
-            audio_view:   cx.new(|cx| AudioPlayerView::new("", window, cx)),
-            pdf_view:     cx.new(|cx| PdfView::new("",  window, cx)),
-            doc_view:     cx.new(|cx| DocView::new("",  window, cx)),
+            audio_view:   cx.new(|cx| AudioPlayerView::new(
+                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+                window, cx,
+            )),
+            pdf_view:     cx.new(|cx| PdfView::new(
+                "https://www.africau.edu/images/default/sample.pdf",
+                window, cx,
+            )),
+            doc_view:     cx.new(|cx| DocView::new(
+                "https://calibre-ebook.com/downloads/demos/demo.docx",
+                window, cx,
+            )),
             latex_view:   cx.new(|cx| LatexView::new(window, cx)),
             chart_view:   cx.new(|cx| ChartView::new(window, cx)),
         }

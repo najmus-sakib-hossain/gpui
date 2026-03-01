@@ -7,12 +7,12 @@ use docx_rs::*;
 use gpui::*;
 use gpui_component::StyledExt;
 use gpui_component::scroll::ScrollableElement;
-use std::io::Read;
 
 pub struct DocView {
     paragraphs: Vec<DocParagraph>,
     file_path: String,
     loaded: bool,
+    status: String,
 }
 
 #[derive(Clone)]
@@ -24,19 +24,46 @@ struct DocParagraph {
 }
 
 impl DocView {
-    pub fn new(file_path: &str, _window: &Window, _cx: &mut Context<Self>) -> Self {
+    pub fn new(file_path: &str, _window: &Window, cx: &mut Context<Self>) -> Self {
         let path = file_path.to_string();
-        let mut view = Self {
+        let view = Self {
             paragraphs: Vec::new(),
             file_path: path.clone(),
             loaded: false,
+            status: if crate::remote::is_url(file_path) {
+                "Downloading document...".into()
+            } else if file_path.is_empty() {
+                "No file loaded".into()
+            } else {
+                "Loading...".into()
+            },
         };
 
-        // Parse DOCX synchronously (fast enough for most docs)
-        if let Ok(paragraphs) = parse_docx(&path) {
-            view.paragraphs = paragraphs;
-            view.loaded = true;
-        }
+        // Load & parse in background (handles both URLs and local paths)
+        cx.spawn(async move |this: WeakEntity<DocView>, cx| {
+            let result = smol::unblock(move || {
+                let data = crate::remote::resolve(&path)?;
+                if data.is_empty() { return Ok(Vec::new()); }
+                parse_docx_bytes(&data)
+            }).await;
+
+            cx.update(|cx| {
+                this.update(cx, |view, cx: &mut Context<DocView>| {
+                    match result {
+                        Ok(paras) => {
+                            view.paragraphs = paras;
+                            view.loaded = true;
+                            view.status = format!("{} paragraphs loaded", view.paragraphs.len());
+                        }
+                        Err(e) => {
+                            view.status = format!("Error: {e}");
+                        }
+                    }
+                    cx.notify();
+                })
+            }).ok();
+        })
+        .detach();
 
         view
     }
@@ -60,11 +87,13 @@ impl Render for DocView {
                 div()
                     .text_color(rgb(0x6c7086))
                     .text_sm()
-                    .child(if self.file_path.is_empty() {
-                        "No file loaded — pass a .docx path".to_string()
-                    } else {
-                        self.file_path.clone()
-                    }),
+                    .child(format!("Source: {}", self.file_path)),
+            )
+            .child(
+                div()
+                    .text_color(rgb(0x6c7086))
+                    .text_sm()
+                    .child(self.status.clone()),
             )
             .child(
                 // Document content area
@@ -111,13 +140,9 @@ impl Render for DocView {
     }
 }
 
-/// Parse a DOCX file and extract paragraphs
-fn parse_docx(path: &str) -> anyhow::Result<Vec<DocParagraph>> {
-    let mut file = std::fs::File::open(path)?;
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf)?;
-
-    let doc = docx_rs::read_docx(&buf)?;
+/// Parse a DOCX byte slice and extract paragraphs
+fn parse_docx_bytes(data: &[u8]) -> anyhow::Result<Vec<DocParagraph>> {
+    let doc = docx_rs::read_docx(data)?;
     let mut paragraphs = Vec::new();
 
     for child in doc.document.children {

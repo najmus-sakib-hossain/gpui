@@ -8,7 +8,7 @@ use gpui_component::StyledExt;
 use openh264::formats::YUVSource;
 use image::RgbaImage;
 use openh264::decoder::Decoder;
-use std::fs::File;
+use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use symphonia::core::formats::FormatOptions;
@@ -38,7 +38,9 @@ impl VideoPlayerView {
         // Decode video in background thread
         cx.spawn(async move |this: WeakEntity<VideoPlayerView>, cx| {
             let decoded = smol::unblock(move || {
-                decode_h264_video(&path)
+                let data = crate::remote::resolve(&path)?;
+                if data.is_empty() { return Ok(Vec::new()); }
+                decode_h264_video(data)
             }).await;
 
             if let Ok(decoded_frames) = decoded {
@@ -180,15 +182,13 @@ impl Render for VideoPlayerView {
 }
 
 /// Decode H.264 video using symphonia + openh264
-fn decode_h264_video(path: &str) -> anyhow::Result<Vec<RgbaImage>> {
-    // 1. Open the media file with symphonia (demux)
-    let file = File::open(path)?;
-    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+fn decode_h264_video(data: Vec<u8>) -> anyhow::Result<Vec<RgbaImage>> {
+    // 1. Feed bytes into symphonia via an in-memory cursor (works for URL-downloaded content too)
+    let cursor = Cursor::new(data);
+    let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
 
     let mut hint = Hint::new();
-    if path.ends_with(".mp4") {
-        hint.with_extension("mp4");
-    }
+    hint.with_extension("mp4");
 
     let probed = symphonia::default::get_probe().format(
         &hint,

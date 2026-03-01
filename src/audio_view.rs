@@ -6,9 +6,8 @@
 use gpui::*;
 use gpui_component::StyledExt;
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
-use std::fs::File;
-use std::io::BufReader;
-use std::sync::Arc;
+use std::io::{BufReader, Cursor};
+use std::sync::{Arc, Mutex};
 
 pub struct AudioPlayerView {
     sink: Option<Arc<Sink>>,
@@ -18,14 +17,36 @@ pub struct AudioPlayerView {
     is_playing: bool,
     volume: f32,
     track_name: String,
+    /// Downloaded audio bytes (None = not yet fetched)
+    audio_data: Arc<Mutex<Option<Vec<u8>>>>,
 }
 
 impl AudioPlayerView {
-    pub fn new(file_path: &str, _window: &Window, _cx: &mut Context<Self>) -> Self {
+    pub fn new(file_path: &str, _window: &Window, cx: &mut Context<Self>) -> Self {
         let track_name = std::path::Path::new(file_path)
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| "Unknown".into());
+
+        let audio_data: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let data_clone = audio_data.clone();
+        let src = file_path.to_string();
+
+        // Fetch audio bytes in background (URL download or file read)
+        cx.spawn(async move |this: WeakEntity<AudioPlayerView>, cx| {
+            let result = smol::unblock(move || crate::remote::resolve(&src)).await;
+            if let Ok(bytes) = result
+                && !bytes.is_empty()
+            {
+                *data_clone.lock().unwrap() = Some(bytes);
+                cx.update(|cx| {
+                    this.update(cx, |_view, cx: &mut Context<AudioPlayerView>| {
+                        cx.notify(); // enable play button
+                    })
+                }).ok();
+            }
+        })
+        .detach();
 
         Self {
             sink: None,
@@ -35,12 +56,13 @@ impl AudioPlayerView {
             is_playing: false,
             volume: 0.75,
             track_name,
+            audio_data,
         }
     }
 
     fn play(&mut self, cx: &mut Context<Self>) {
         if self.sink.is_some() {
-            // Resume
+            // Resume paused sink
             if let Some(ref sink) = self.sink {
                 sink.play();
             }
@@ -49,21 +71,27 @@ impl AudioPlayerView {
             return;
         }
 
-        // Create new audio output stream
-        if let Ok((stream, stream_handle)) = OutputStream::try_default()
-            && let Ok(sink) = Sink::try_new(&stream_handle) {
-                // Load and decode the audio file
-                if let Ok(file) = File::open(&self.file_path) {
-                    let reader = BufReader::new(file);
-                    if let Ok(source) = Decoder::new(reader) {
-                        sink.set_volume(self.volume);
-                        sink.append(source);
-                        self.sink = Some(Arc::new(sink));
-                        self._stream = Some(stream);
-                        self._stream_handle = Some(stream_handle);
-                        self.is_playing = true;
-                    }
-                }
+        // Acquire audio bytes — prefer downloaded data, fall back to local file
+        let maybe_bytes: Option<Vec<u8>> = {
+            let guard = self.audio_data.lock().unwrap();
+            guard.clone()
+        };
+        let audio_bytes = maybe_bytes.or_else(|| {
+            if self.file_path.is_empty() { None }
+            else { std::fs::read(&self.file_path).ok() }
+        });
+
+        if let Some(bytes) = audio_bytes
+            && let Ok((stream, stream_handle)) = OutputStream::try_default()
+            && let Ok(sink) = Sink::try_new(&stream_handle)
+            && let Ok(source) = Decoder::new(BufReader::new(Cursor::new(bytes)))
+        {
+            sink.set_volume(self.volume);
+            sink.append(source);
+            self.sink       = Some(Arc::new(sink));
+            self._stream    = Some(stream);
+            self._stream_handle = Some(stream_handle);
+            self.is_playing = true;
         }
         cx.notify();
     }

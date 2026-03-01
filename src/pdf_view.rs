@@ -27,7 +27,9 @@ impl PdfView {
         // Render PDF pages in background
         cx.spawn(async move |this: WeakEntity<PdfView>, cx| {
             let rendered = smol::unblock(move || {
-                render_pdf_pages(&path)
+                let data = crate::remote::resolve(&path)?;
+                if data.is_empty() { return Ok(Vec::new()); }
+                render_pdf_pages(data)
             }).await;
 
             if let Ok(rendered_pages) = rendered {
@@ -167,9 +169,8 @@ impl Render for PdfView {
 }
 
 /// Render all pages of a PDF to RGBA images using hayro (pure Rust)
-fn render_pdf_pages(path: &str) -> anyhow::Result<Vec<RgbaImage>> {
-    let pdf_data = std::fs::read(path)?;
-    let pdf = hayro::Pdf::new(std::sync::Arc::new(pdf_data))
+fn render_pdf_pages(data: Vec<u8>) -> anyhow::Result<Vec<RgbaImage>> {
+    let pdf = hayro::Pdf::new(std::sync::Arc::new(data))
         .map_err(|e| anyhow::anyhow!("Failed to parse PDF: {:?}", e))?;
     let mut pages = Vec::new();
     let interp = hayro::InterpreterSettings::default();
