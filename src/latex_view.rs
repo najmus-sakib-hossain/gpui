@@ -2,9 +2,6 @@
 //!
 //! Strategy A: `typst` compiles Typst markup → `typst-render` → bitmap → GPUI.
 //! Strategy B: `katex` renders LaTeX math → SVG → `resvg` → bitmap → GPUI.
-//!
-//! Why Typst over tectonic? Tectonic is a TeX engine based on XeTeX, partly written in C.
-//! Typst is 100% Rust — perfect for single-binary shipping.
 
 use gpui::*;
 use image::RgbaImage;
@@ -30,7 +27,7 @@ impl LatexView {
         let default_typst = r#"
 = Hello from Typst!
 
-This is rendered *entirely in Rust* \u2014 no LaTeX installation needed.
+This is rendered *entirely in Rust* — no LaTeX installation needed.
 
 $ integral_0^infinity e^(-x^2) d x = sqrt(pi) / 2 $
 
@@ -219,8 +216,10 @@ impl Render for LatexView {
 
 /// Render Typst source to an RGBA image using typst + typst-render (pure Rust)
 fn render_typst(source: &str) -> anyhow::Result<RgbaImage> {
+    use typst::foundations::Smart;
+
     // Create a minimal Typst world (fonts, file system)
-    // In production, implement the `World` trait or use typst-as-lib crate
+    // In production you'd implement the `World` trait properly
     let world = create_typst_world(source)?;
 
     // Compile the Typst document
@@ -257,7 +256,7 @@ fn render_katex_math(latex_expr: &str) -> anyhow::Result<RgbaImage> {
     let html = katex::render_with_opts(latex_expr, &opts)
         .map_err(|e| anyhow::anyhow!("KaTeX render error: {:?}", e))?;
 
-    // 2. Wrap KaTeX HTML output in an SVG foreignObject
+    // 2. KaTeX outputs HTML with embedded SVG — extract or wrap in SVG
     let svg_string = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200">
             <foreignObject width="100%" height="100%">
@@ -288,11 +287,10 @@ fn render_katex_math(latex_expr: &str) -> anyhow::Result<RgbaImage> {
         .ok_or_else(|| anyhow::anyhow!("Failed to create RGBA image"))
 }
 
-/// Placeholder — in production, implement the full typst::World trait
-/// See typst-as-lib crate for a ready-made implementation
+// Placeholder — in production, implement the full typst::World trait
 fn create_typst_world(_source: &str) -> anyhow::Result<impl typst::World> {
     // You would create a struct that implements typst::World
     // providing: source files, fonts, current date, etc.
     // See typst-as-lib crate for a ready-made implementation
-    todo!("Implement typst::World \u2014 use typst-as-lib crate for convenience")
+    todo!("Implement typst::World — use typst-as-lib crate for convenience")
 }

@@ -1,7 +1,7 @@
 //! 📊 Chart Renderer Component
 //!
 //! Strategy: `plotters` renders charts to an in-memory bitmap buffer → RGBA → GPUI.
-//! Supports: bar, line, scatter, histogram, heatmap, 3D plots — all pure Rust.
+//! Supports Line, Bar, Scatter, and Area chart types.
 
 use gpui::*;
 use image::RgbaImage;
@@ -26,7 +26,7 @@ pub enum ChartType {
 
 impl ChartView {
     pub fn new(_window: &Window, _cx: &mut Context<Self>) -> Self {
-        // Sample data: sinusoidal wave with cosine overlay
+        // Sample data
         let data: Vec<(f64, f64)> = (0..50)
             .map(|i| {
                 let x = i as f64 * 0.2;
@@ -76,7 +76,7 @@ impl Render for ChartView {
                 div()
                     .text_color(rgb(0xcdd6f4))
                     .text_xl()
-                    .child("📊 Chart Renderer (plotters \u2014 pure Rust)"),
+                    .child("📊 Chart Renderer (plotters — pure Rust)"),
             )
             // Chart type selector
             .child(
