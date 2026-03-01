@@ -4,6 +4,7 @@
 //! Talks directly to OS-native audio APIs — CoreAudio / WASAPI / ALSA.
 
 use gpui::*;
+use gpui_component::StyledExt;
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::fs::File;
 use std::io::BufReader;
@@ -49,8 +50,8 @@ impl AudioPlayerView {
         }
 
         // Create new audio output stream
-        if let Ok((stream, stream_handle)) = OutputStream::try_default() {
-            if let Ok(sink) = Sink::try_new(&stream_handle) {
+        if let Ok((stream, stream_handle)) = OutputStream::try_default()
+            && let Ok(sink) = Sink::try_new(&stream_handle) {
                 // Load and decode the audio file
                 if let Ok(file) = File::open(&self.file_path) {
                     let reader = BufReader::new(file);
@@ -63,7 +64,6 @@ impl AudioPlayerView {
                         self.is_playing = true;
                     }
                 }
-            }
         }
         cx.notify();
     }
@@ -97,8 +97,15 @@ impl AudioPlayerView {
 }
 
 impl Render for AudioPlayerView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let vol_pct = (self.volume * 100.0) as u32;
+        let is_playing = self.is_playing;
+        let play_pause = cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            if this.is_playing { this.pause(cx); } else { this.play(cx); }
+        });
+        let stop = cx.listener(|this, _: &MouseDownEvent, _, cx| this.stop(cx));
+        let vol_up = cx.listener(|this, _: &MouseDownEvent, _, cx| this.set_volume(this.volume + 0.1, cx));
+        let vol_dn = cx.listener(|this, _: &MouseDownEvent, _, cx| this.set_volume(this.volume - 0.1, cx));
 
         div()
             .v_flex()
@@ -149,10 +156,8 @@ impl Render for AudioPlayerView {
                             .text_color(rgb(0x1e1e2e))
                             .rounded(px(6.))
                             .cursor_pointer()
-                            .child(if self.is_playing { "⏸ Pause" } else { "▶ Play" })
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .child(if is_playing { "⏸ Pause" } else { "▶ Play" })
+                            .on_mouse_down(MouseButton::Left, play_pause),
                     )
                     .child(
                         div()
@@ -163,9 +168,7 @@ impl Render for AudioPlayerView {
                             .rounded(px(6.))
                             .cursor_pointer()
                             .child("⏹ Stop")
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .on_mouse_down(MouseButton::Left, stop),
                     ),
             )
             // Volume
@@ -175,7 +178,8 @@ impl Render for AudioPlayerView {
                     .gap_2()
                     .items_center()
                     .child(
-                        div().text_color(rgb(0xa6adc8)).child("🔉"),
+                        div().text_color(rgb(0xa6adc8)).child("🔉")
+                            .on_mouse_down(MouseButton::Left, vol_dn),
                     )
                     .child(
                         // Volume bar (visual)
@@ -196,7 +200,8 @@ impl Render for AudioPlayerView {
                         div()
                             .text_color(rgb(0xa6adc8))
                             .text_sm()
-                            .child(format!("{}%", vol_pct)),
+                            .child(format!("{}%", vol_pct))
+                            .on_mouse_down(MouseButton::Left, vol_up),
                     ),
             )
     }

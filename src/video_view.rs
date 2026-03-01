@@ -4,12 +4,13 @@
 //! Pipeline: Decode frames → RGBA buffer → paint as GPUI custom Element texture every frame.
 
 use gpui::*;
+use gpui_component::StyledExt;
+use openh264::formats::YUVSource;
 use image::RgbaImage;
 use openh264::decoder::Decoder;
 use std::fs::File;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
@@ -35,17 +36,15 @@ impl VideoPlayerView {
         let path = file_path.to_string();
 
         // Decode video in background thread
-        cx.spawn(|this, mut cx| async move {
-            let decoded = tokio::task::spawn_blocking(move || {
+        cx.spawn(async move |this: WeakEntity<VideoPlayerView>, cx| {
+            let decoded = smol::unblock(move || {
                 decode_h264_video(&path)
-            })
-            .await
-            .unwrap();
+            }).await;
 
             if let Ok(decoded_frames) = decoded {
                 *frames_clone.lock().unwrap() = decoded_frames;
                 cx.update(|cx| {
-                    this.update(cx, |view, cx| {
+                    this.update(cx, |view, cx: &mut Context<VideoPlayerView>| {
                         view.loaded = true;
                         cx.notify();
                     })
@@ -75,10 +74,10 @@ impl VideoPlayerView {
 
     fn schedule_next_frame(&mut self, cx: &mut Context<Self>) {
         let frame_duration = Duration::from_secs_f64(1.0 / self.fps);
-        cx.spawn(|this, mut cx| async move {
+        cx.spawn(async move |this: WeakEntity<VideoPlayerView>, cx| {
             smol::Timer::after(frame_duration).await;
             cx.update(|cx| {
-                this.update(cx, |view, cx| {
+                this.update(cx, |view, cx: &mut Context<VideoPlayerView>| {
                     if view.is_playing {
                         let frame_count = view.frames.lock().unwrap().len();
                         if frame_count > 0 {
@@ -97,6 +96,7 @@ impl VideoPlayerView {
 impl Render for VideoPlayerView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let frames = self.frames.lock().unwrap();
+        let toggle = cx.listener(|this, _: &MouseDownEvent, _, cx| this.toggle_playback(cx));
 
         div()
             .v_flex()
@@ -108,6 +108,17 @@ impl Render for VideoPlayerView {
                     .text_color(rgb(0xcdd6f4))
                     .text_xl()
                     .child("🎬 Video Player"),
+            )
+            .child(
+                // Video file info
+                div()
+                    .text_color(rgb(0x6c7086))
+                    .text_sm()
+                    .child(if self.file_path.is_empty() {
+                        "No file loaded — pass a .mp4 path".to_string()
+                    } else {
+                        self.file_path.clone()
+                    }),
             )
             .child(
                 // Video display area
@@ -153,9 +164,7 @@ impl Render for VideoPlayerView {
                             .rounded(px(6.))
                             .cursor_pointer()
                             .child(if self.is_playing { "⏸ Pause" } else { "▶ Play" })
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .on_mouse_down(MouseButton::Left, toggle),
                     )
                     .child(
                         div()
@@ -203,19 +212,14 @@ fn decode_h264_video(path: &str) -> anyhow::Result<Vec<RgbaImage>> {
     let mut frames = Vec::new();
 
     // 3. Read packets and decode
-    loop {
-        let packet = match format_reader.next_packet() {
-            Ok(p) => p,
-            Err(_) => break,
-        };
-
+    while let Ok(packet) = format_reader.next_packet() {
         if packet.track_id() != track_id {
             continue;
         }
 
         // Decode the H.264 NAL units
-        if let Some(yuv) = h264_decoder.decode(packet.data())? {
-            let (width, height) = yuv.dimension_rgb();
+        if let Some(yuv) = h264_decoder.decode(&packet.data)? {
+            let (width, height) = yuv.dimensions();
             let mut rgb_buf = vec![0u8; width * height * 3];
             yuv.write_rgb8(&mut rgb_buf);
 

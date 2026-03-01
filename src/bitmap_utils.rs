@@ -4,7 +4,7 @@
 //! Core pattern: decode/render content → RGBA bitmap → display via GPUI `img()` element.
 
 use gpui::*;
-use image::{DynamicImage, RgbaImage};
+use image::{DynamicImage, Frame, RgbaImage};
 use std::sync::Arc;
 
 /// Wraps an RGBA bitmap so GPUI can display it with `img()`.
@@ -18,23 +18,23 @@ pub fn rgba_to_gpui_image(rgba: &RgbaImage) -> ImageSource {
 
     // GPUI's RenderImage expects frames (for animated images)
     // For a single frame, just provide one
-    let frame = Frame {
-        image: image::RgbaImage::from_raw(width, height, pixels)
-            .expect("Invalid RGBA buffer"),
-        duration: std::time::Duration::ZERO,
-    };
+    let rgba_image = image::RgbaImage::from_raw(width, height, pixels)
+        .expect("Invalid RGBA buffer");
+    let frame = Frame::new(rgba_image);
 
     let render_image = RenderImage::new(vec![frame]);
     ImageSource::Render(Arc::new(render_image))
 }
 
 /// Convenience: load a DynamicImage and convert
+#[allow(dead_code)]
 pub fn dynamic_image_to_gpui(dyn_img: &DynamicImage) -> ImageSource {
     let rgba = dyn_img.to_rgba8();
     rgba_to_gpui_image(&rgba)
 }
 
 /// Creates a GPUI-displayable element from raw pixel data
+#[allow(dead_code)]
 pub fn bitmap_element(
     source: ImageSource,
     width: f32,

@@ -2,8 +2,11 @@
 //!
 //! Strategy A: `typst` compiles Typst markup → `typst-render` → bitmap → GPUI.
 //! Strategy B: `katex` renders LaTeX math → SVG → `resvg` → bitmap → GPUI.
+//! NOTE: KaTeX is currently disabled due to Windows MSVC compatibility issues.
 
 use gpui::*;
+use gpui_component::StyledExt;
+use gpui_component::scroll::ScrollableElement;
 use image::RgbaImage;
 use std::sync::{Arc, Mutex};
 
@@ -56,19 +59,19 @@ $ integral_0^infinity e^(-x^2) d x = sqrt(pi) / 2 $
         let rendered = self.rendered.clone();
         let mode = self.mode;
 
-        cx.spawn(|this, mut cx| async move {
-            let result = tokio::task::spawn_blocking(move || match mode {
+        cx.spawn(async move |this: WeakEntity<LatexView>, cx| {
+            let result = smol::unblock(move || match mode {
                 RenderMode::Typst => render_typst(&source),
-                RenderMode::KatexMath => render_katex_math(&source),
-            })
-            .await
-            .unwrap();
+                RenderMode::KatexMath => {
+                    Err(anyhow::anyhow!("KaTeX is disabled on Windows MSVC. Use Typst mode instead."))
+                }
+            }).await;
 
             match result {
                 Ok(img) => {
                     *rendered.lock().unwrap() = Some(img);
                     cx.update(|cx| {
-                        this.update(cx, |view, cx| {
+                        this.update(cx, |view, cx: &mut Context<LatexView>| {
                             view.error_msg = None;
                             cx.notify();
                         })
@@ -76,7 +79,7 @@ $ integral_0^infinity e^(-x^2) d x = sqrt(pi) / 2 $
                 }
                 Err(e) => {
                     cx.update(|cx| {
-                        this.update(cx, |view, cx| {
+                        this.update(cx, |view, cx: &mut Context<LatexView>| {
                             view.error_msg = Some(e.to_string());
                             cx.notify();
                         })
@@ -163,7 +166,7 @@ impl Render for LatexView {
                                     .rounded(px(6.))
                                     .text_color(rgb(0xa6e3a1))
                                     .text_sm()
-                                    .overflow_y_scroll()
+                                    .overflow_y_scrollbar()
                                     .max_h(px(500.))
                                     .child(self.source_code.clone()),
                             ),
@@ -216,14 +219,12 @@ impl Render for LatexView {
 
 /// Render Typst source to an RGBA image using typst + typst-render (pure Rust)
 fn render_typst(source: &str) -> anyhow::Result<RgbaImage> {
-    use typst::foundations::Smart;
-
     // Create a minimal Typst world (fonts, file system)
     // In production you'd implement the `World` trait properly
     let world = create_typst_world(source)?;
 
     // Compile the Typst document
-    let document = typst::compile(&world)
+    let document: typst::layout::PagedDocument = typst::compile(&*world)
         .output
         .map_err(|e| anyhow::anyhow!("Typst compile error: {:?}", e))?;
 
@@ -246,6 +247,15 @@ fn render_typst(source: &str) -> anyhow::Result<RgbaImage> {
 }
 
 /// Render LaTeX math expression to RGBA via KaTeX → SVG → resvg
+/// DISABLED: KaTeX requires QuickJS which doesn't support Windows MSVC toolchain
+#[allow(dead_code)]
+fn render_katex_math(_latex_expr: &str) -> anyhow::Result<RgbaImage> {
+    Err(anyhow::anyhow!(
+        "KaTeX is disabled on Windows MSVC. Use the GNU toolchain or Typst mode instead."
+    ))
+}
+
+/* Original implementation - disabled for Windows MSVC compatibility:
 fn render_katex_math(latex_expr: &str) -> anyhow::Result<RgbaImage> {
     // 1. Render LaTeX math → SVG string using katex
     let opts = katex::Opts::builder()
@@ -286,11 +296,108 @@ fn render_katex_math(latex_expr: &str) -> anyhow::Result<RgbaImage> {
     RgbaImage::from_raw(width, height, pixmap.data().to_vec())
         .ok_or_else(|| anyhow::anyhow!("Failed to create RGBA image"))
 }
+*/
 
-// Placeholder — in production, implement the full typst::World trait
-fn create_typst_world(_source: &str) -> anyhow::Result<impl typst::World> {
-    // You would create a struct that implements typst::World
-    // providing: source files, fonts, current date, etc.
-    // See typst-as-lib crate for a ready-made implementation
-    todo!("Implement typst::World — use typst-as-lib crate for convenience")
+fn create_typst_world(source: &str) -> anyhow::Result<Box<dyn typst::World>> {
+    Ok(Box::new(MinimalTypstWorld::new(source)?))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Minimal typst::World implementation
+// ─────────────────────────────────────────────────────────────────────────────
+
+use std::path::PathBuf;
+use typst::diag::{FileError, FileResult};
+use typst::foundations::{Bytes, Datetime};
+use typst::syntax::{FileId, Source, VirtualPath};
+use typst::text::{Font, FontBook};
+use typst::utils::LazyHash;
+use typst::LibraryExt;
+
+struct MinimalTypstWorld {
+    library: LazyHash<typst::Library>,
+    book:    LazyHash<FontBook>,
+    fonts:   Vec<Font>,
+    source:  Source,
+    main:    FileId,
+}
+
+impl MinimalTypstWorld {
+    fn new(source_text: &str) -> anyhow::Result<Self> {
+        let main_id = FileId::new(None, VirtualPath::new("main.typ"));
+        let source  = Source::new(main_id, source_text.to_string());
+
+        // Load fonts from the Windows system font directory
+        let mut book  = FontBook::new();
+        let mut fonts: Vec<Font> = Vec::new();
+
+        let fonts_dir = PathBuf::from(r"C:\Windows\Fonts");
+        if fonts_dir.exists() {
+            for entry in std::fs::read_dir(&fonts_dir)
+                .unwrap_or_else(|_| std::fs::read_dir(".").unwrap())
+                .flatten()
+            {
+                let path = entry.path();
+                let ext  = path.extension()
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                if matches!(ext.as_str(), "ttf" | "otf" | "ttc")
+                    && let Ok(data) = std::fs::read(&path)
+                {
+                    let bytes = Bytes::new(data);
+                    for face_idx in 0u32.. {
+                        match Font::new(bytes.clone(), face_idx) {
+                            Some(font) => {
+                                book.push(font.info().clone());
+                                fonts.push(font);
+                            }
+                            None => break,
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(Self {
+            library: LazyHash::new(typst::Library::builder().build()),
+            book: LazyHash::new(book),
+            fonts,
+            source,
+            main: main_id,
+        })
+    }
+}
+
+impl typst::World for MinimalTypstWorld {
+    fn library(&self) -> &LazyHash<typst::Library> {
+        &self.library
+    }
+
+    fn book(&self) -> &LazyHash<FontBook> {
+        &self.book
+    }
+
+    fn main(&self) -> FileId {
+        self.main
+    }
+
+    fn source(&self, id: FileId) -> FileResult<Source> {
+        if id == self.main {
+            Ok(self.source.clone())
+        } else {
+            Err(FileError::NotFound(id.vpath().as_rootless_path().into()))
+        }
+    }
+
+    fn file(&self, id: FileId) -> FileResult<Bytes> {
+        Err(FileError::NotFound(id.vpath().as_rootless_path().into()))
+    }
+
+    fn font(&self, index: usize) -> Option<Font> {
+        self.fonts.get(index).cloned()
+    }
+
+    fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
+        None
+    }
 }

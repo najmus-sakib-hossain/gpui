@@ -4,6 +4,7 @@
 //! Supports Line, Bar, Scatter, and Area chart types.
 
 use gpui::*;
+use gpui_component::StyledExt;
 use image::RgbaImage;
 use plotters::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -64,7 +65,7 @@ impl ChartView {
 }
 
 impl Render for ChartView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let rendered = self.rendered.lock().unwrap();
 
         div()
@@ -93,6 +94,9 @@ impl Render for ChartView {
                         .into_iter()
                         .map(|(label, ct)| {
                             let is_active = self.chart_type == ct;
+                            let switch = cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                this.set_chart_type(ct, cx);
+                            });
                             div()
                                 .px_3()
                                 .py_1()
@@ -105,9 +109,7 @@ impl Render for ChartView {
                                 .rounded(px(6.))
                                 .cursor_pointer()
                                 .child(label)
-                                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
-                                    cx.notify();
-                                })
+                                .on_mouse_down(MouseButton::Left, switch)
                         }),
                     ),
             )

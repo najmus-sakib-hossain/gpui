@@ -1,8 +1,8 @@
 //! 📐 LaTeX / Typesetting Panel
 //!
-//! Stack: typst + typst-render (full typesetting) + katex (math only)
+//! Stack: typst + typst-render (full typesetting)
+//! NOTE: katex (math only) is disabled on Windows MSVC
 //! Pipeline: Source → typst compiler → typst-render → bitmap → GPUI
-//!       OR: LaTeX math → katex → SVG → resvg → bitmap → GPUI
 
 use gpui::*;
 use super::video::card;
@@ -20,9 +20,9 @@ impl LatexPanel {
                 "typst — full typesetting compiler (pure Rust)",
                 "typst-render — typst → bitmap PNG (pure Rust)",
                 "typst-as-lib — easy library wrapper",
-                "katex — LaTeX math → HTML/SVG",
                 "resvg — SVG → bitmap fallback (pure Rust)",
                 "100% Rust — no tectonic/XeTeX C deps",
+                "NOTE: katex disabled (Windows MSVC incompatible)",
             ],
         }
     }

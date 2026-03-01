@@ -39,7 +39,7 @@ calamine = "0.26"
 # ═══════ TYPESETTING / LATEX ═══════
 typst = "0.14"
 typst-render = "0.14"
-katex = "0.4"
+# katex = "0.4"  # Disabled: QuickJS backend doesn't support MSVC on Windows
 
 # ═══════ CHARTS ═══════
 plotters = "0.3"

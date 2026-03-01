@@ -5,6 +5,8 @@
 
 use docx_rs::*;
 use gpui::*;
+use gpui_component::StyledExt;
+use gpui_component::scroll::ScrollableElement;
 use std::io::Read;
 
 pub struct DocView {
@@ -54,6 +56,17 @@ impl Render for DocView {
                     .child("📝 Document Viewer (docx-rs — pure Rust)"),
             )
             .child(
+                // File info
+                div()
+                    .text_color(rgb(0x6c7086))
+                    .text_sm()
+                    .child(if self.file_path.is_empty() {
+                        "No file loaded — pass a .docx path".to_string()
+                    } else {
+                        self.file_path.clone()
+                    }),
+            )
+            .child(
                 // Document content area
                 div()
                     .v_flex()
@@ -63,7 +76,7 @@ impl Render for DocView {
                     .bg(rgb(0xffffff))
                     .rounded(px(8.))
                     .shadow_lg()
-                    .overflow_y_scroll()
+                    .overflow_y_scrollbar()
                     .max_h(px(600.))
                     .children(
                         self.paragraphs
@@ -76,11 +89,18 @@ impl Render for DocView {
                                 if para.is_heading {
                                     el = el
                                         .text_xl()
+                                        .font_weight(FontWeight::BOLD)
                                         .pb_2()
                                         .border_b_1()
                                         .border_color(rgb(0xcccccc));
+                                } else if para.is_bold {
+                                    el = el
+                                        .text_sm()
+                                        .font_weight(FontWeight::BOLD);
                                 } else {
                                     el = el.text_sm();
+                                    // font_size hint (visual only — GPUI uses text_sm/text_base etc)
+                                    let _ = para.font_size; // acknowledged
                                 }
 
                                 el.child(para.text.clone())
@@ -101,54 +121,40 @@ fn parse_docx(path: &str) -> anyhow::Result<Vec<DocParagraph>> {
     let mut paragraphs = Vec::new();
 
     for child in doc.document.children {
-        match child {
-            DocumentChild::Paragraph(para) => {
-                let mut text = String::new();
-                let mut is_bold = false;
-                let mut is_heading = false;
-                let mut font_size = 12.0;
+        if let DocumentChild::Paragraph(para) = child {
+            let mut text = String::new();
+            let mut is_bold = false;
+            let mut is_heading = false;
+            let mut font_size = 12.0;
 
-                // Check paragraph style for headings
-                if let Some(ref style) = para.property.style {
-                    if style.val.starts_with("Heading") {
-                        is_heading = true;
-                        font_size = 18.0;
+            if let Some(ref style) = para.property.style
+                && style.val.starts_with("Heading") {
+                    is_heading = true;
+                    font_size = 18.0;
+            }
+
+            for content in &para.children {
+                if let ParagraphChild::Run(run) = content {
+                    let rp = &run.run_property;
+                    if rp.bold.is_some() {
+                        is_bold = true;
                     }
-                }
-
-                // Extract text from runs
-                for content in &para.children {
-                    match content {
-                        ParagraphChild::Run(run) => {
-                            // Check run properties
-                            if let Some(ref rp) = run.run_property {
-                                if rp.bold.is_some() {
-                                    is_bold = true;
-                                }
-                            }
-                            for run_child in &run.children {
-                                match run_child {
-                                    RunChild::Text(t) => {
-                                        text.push_str(&t.text);
-                                    }
-                                    _ => {}
-                                }
-                            }
+                    for run_child in &run.children {
+                        if let RunChild::Text(t) = run_child {
+                            text.push_str(&t.text);
                         }
-                        _ => {}
                     }
-                }
-
-                if !text.is_empty() {
-                    paragraphs.push(DocParagraph {
-                        text,
-                        is_heading,
-                        is_bold,
-                        font_size,
-                    });
                 }
             }
-            _ => {}
+
+            if !text.is_empty() {
+                paragraphs.push(DocParagraph {
+                    text,
+                    is_heading,
+                    is_bold,
+                    font_size,
+                });
+            }
         }
     }
 

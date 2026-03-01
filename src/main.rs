@@ -6,7 +6,7 @@
 //! Rule: The user downloads ONE binary. Nothing else. Ever.
 
 use gpui::*;
-use gpui_component::*;
+use gpui_component::StyledExt;
 
 mod bitmap_utils;
 mod video_view;
@@ -17,6 +17,14 @@ mod doc_view;
 mod latex_view;
 mod chart_view;
 
+use audio_view::AudioPlayerView;
+use chart_view::ChartView;
+use doc_view::DocView;
+use latex_view::LatexView;
+use pdf_view::PdfView;
+use three_d_view::ThreeDView;
+use video_view::VideoPlayerView;
+
 fn main() {
     let app = Application::new().with_assets(gpui_component_assets::Assets);
     app.run(move |cx| {
@@ -24,7 +32,7 @@ fn main() {
         cx.spawn(async move |cx| {
             cx.open_window(WindowOptions::default(), |window, cx| {
                 let view = cx.new(|cx| AppRoot::new(window, cx));
-                cx.new(|cx| Root::new(view, window, cx))
+                cx.new(|cx| gpui_component::Root::new(view, window, cx))
             })?;
             Ok::<_, anyhow::Error>(())
         })
@@ -35,6 +43,14 @@ fn main() {
 /// Top-level application view hosting all media components
 struct AppRoot {
     current_tab: Tab,
+    // Persistent view entities — created once, kept alive the whole session
+    video_view:  Entity<VideoPlayerView>,
+    three_d_view: Entity<ThreeDView>,
+    audio_view:  Entity<AudioPlayerView>,
+    pdf_view:    Entity<PdfView>,
+    doc_view:    Entity<DocView>,
+    latex_view:  Entity<LatexView>,
+    chart_view:  Entity<ChartView>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -49,9 +65,16 @@ enum Tab {
 }
 
 impl AppRoot {
-    fn new(_window: &Window, _cx: &mut Context<Self>) -> Self {
+    fn new(window: &Window, cx: &mut Context<Self>) -> Self {
         Self {
-            current_tab: Tab::Chart, // default tab
+            current_tab: Tab::Chart,
+            video_view:   cx.new(|cx| VideoPlayerView::new("",  window, cx)),
+            three_d_view: cx.new(|cx| ThreeDView::new(window, cx)),
+            audio_view:   cx.new(|cx| AudioPlayerView::new("", window, cx)),
+            pdf_view:     cx.new(|cx| PdfView::new("",  window, cx)),
+            doc_view:     cx.new(|cx| DocView::new("",  window, cx)),
+            latex_view:   cx.new(|cx| LatexView::new(window, cx)),
+            chart_view:   cx.new(|cx| ChartView::new(window, cx)),
         }
     }
 }
@@ -84,6 +107,10 @@ impl Render for AppRoot {
                         .into_iter()
                         .map(|(label, t)| {
                             let is_active = tab == t;
+                            let switch = cx.listener(move |this, _: &MouseDownEvent, _win, cx| {
+                                this.current_tab = t;
+                                cx.notify();
+                            });
                             div()
                                 .px_4()
                                 .py_2()
@@ -92,9 +119,7 @@ impl Render for AppRoot {
                                 .bg(if is_active { rgb(0x585b70) } else { rgb(0x313244) })
                                 .text_color(rgb(0xcdd6f4))
                                 .child(label)
-                                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
-                                    cx.notify();
-                                })
+                                .on_mouse_down(MouseButton::Left, switch)
                         }),
                     ),
             )
@@ -102,16 +127,15 @@ impl Render for AppRoot {
                 // ── Content area ──
                 div()
                     .flex_1()
-                    .p_4()
-                    .overflow_y_scroll()
+                    .overflow_hidden()
                     .child(match self.current_tab {
-                        Tab::Video  => div().child("Video Player — see VideoPlayerView"),
-                        Tab::ThreeD => div().child("3D Renderer — see ThreeDView"),
-                        Tab::Audio  => div().child("Audio Player — see AudioPlayerView"),
-                        Tab::Pdf    => div().child("PDF Viewer — see PdfView"),
-                        Tab::Doc    => div().child("Doc Viewer — see DocView"),
-                        Tab::Latex  => div().child("LaTeX Renderer — see LatexView"),
-                        Tab::Chart  => div().child("Chart Renderer — see ChartView"),
+                        Tab::Video  => AnyView::from(self.video_view.clone()),
+                        Tab::ThreeD => AnyView::from(self.three_d_view.clone()),
+                        Tab::Audio  => AnyView::from(self.audio_view.clone()),
+                        Tab::Pdf    => AnyView::from(self.pdf_view.clone()),
+                        Tab::Doc    => AnyView::from(self.doc_view.clone()),
+                        Tab::Latex  => AnyView::from(self.latex_view.clone()),
+                        Tab::Chart  => AnyView::from(self.chart_view.clone()),
                     }),
             )
     }

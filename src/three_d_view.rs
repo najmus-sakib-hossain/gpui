@@ -5,6 +5,7 @@
 
 use glam::{Mat4, Vec3};
 use gpui::*;
+use gpui_component::StyledExt;
 use image::RgbaImage;
 use std::sync::{Arc, Mutex};
 use wgpu::util::DeviceExt;
@@ -34,12 +35,12 @@ impl ThreeDView {
         let frame_clone = frame.clone();
 
         // Initial render
-        cx.spawn(|this, mut cx| async move {
+        cx.spawn(async move |this: WeakEntity<ThreeDView>, cx| {
             let rendered = render_3d_scene(width, height, 0.0).await;
             if let Ok(img) = rendered {
                 *frame_clone.lock().unwrap() = Some(img);
                 cx.update(|cx| {
-                    this.update(cx, |_, cx| cx.notify())
+                    this.update(cx, |_: &mut ThreeDView, cx: &mut Context<ThreeDView>| cx.notify())
                 }).ok();
             }
         })
@@ -60,12 +61,12 @@ impl ThreeDView {
         let h = self.height;
         let frame = self.rendered_frame.clone();
 
-        cx.spawn(|this, mut cx| async move {
+        cx.spawn(async move |this: WeakEntity<ThreeDView>, cx| {
             let rendered = render_3d_scene(w, h, angle).await;
             if let Ok(img) = rendered {
                 *frame.lock().unwrap() = Some(img);
                 cx.update(|cx| {
-                    this.update(cx, |_, cx| cx.notify())
+                    this.update(cx, |_: &mut ThreeDView, cx: &mut Context<ThreeDView>| cx.notify())
                 }).ok();
             }
         })
@@ -74,8 +75,10 @@ impl ThreeDView {
 }
 
 impl Render for ThreeDView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let frame = self.rendered_frame.lock().unwrap();
+        let rotate_left  = cx.listener(|this, _: &MouseDownEvent, _, cx| this.rotate(-15.0_f32.to_radians(), cx));
+        let rotate_right = cx.listener(|this, _: &MouseDownEvent, _, cx| this.rotate( 15.0_f32.to_radians(), cx));
 
         div()
             .v_flex()
@@ -126,9 +129,7 @@ impl Render for ThreeDView {
                             .rounded(px(6.))
                             .cursor_pointer()
                             .child("⟲ Rotate Left")
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .on_mouse_down(MouseButton::Left, rotate_left),
                     )
                     .child(
                         div()
@@ -139,9 +140,7 @@ impl Render for ThreeDView {
                             .rounded(px(6.))
                             .cursor_pointer()
                             .child("⟳ Rotate Right")
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .on_mouse_down(MouseButton::Left, rotate_right),
                     )
                     .child(
                         div()

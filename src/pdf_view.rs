@@ -4,6 +4,7 @@
 //! 100% pure Rust. No PDFium. No C deps.
 
 use gpui::*;
+use gpui_component::StyledExt;
 use image::RgbaImage;
 use std::sync::{Arc, Mutex};
 
@@ -24,18 +25,16 @@ impl PdfView {
         let path = file_path.to_string();
 
         // Render PDF pages in background
-        cx.spawn(|this, mut cx| async move {
-            let rendered = tokio::task::spawn_blocking(move || {
+        cx.spawn(async move |this: WeakEntity<PdfView>, cx| {
+            let rendered = smol::unblock(move || {
                 render_pdf_pages(&path)
-            })
-            .await
-            .unwrap();
+            }).await;
 
             if let Ok(rendered_pages) = rendered {
                 let count = rendered_pages.len();
                 *pages_clone.lock().unwrap() = rendered_pages;
                 cx.update(|cx| {
-                    this.update(cx, |view, cx| {
+                    this.update(cx, |view, cx: &mut Context<PdfView>| {
                         view.total_pages = count;
                         view.loaded = true;
                         cx.notify();
@@ -70,8 +69,10 @@ impl PdfView {
 }
 
 impl Render for PdfView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let pages = self.pages.lock().unwrap();
+        let prev = cx.listener(|this, _: &MouseDownEvent, _, cx| this.prev_page(cx));
+        let next = cx.listener(|this, _: &MouseDownEvent, _, cx| this.next_page(cx));
 
         div()
             .v_flex()
@@ -83,6 +84,17 @@ impl Render for PdfView {
                     .text_color(rgb(0xcdd6f4))
                     .text_xl()
                     .child("📄 PDF Viewer (hayro — pure Rust)"),
+            )
+            .child(
+                // File info
+                div()
+                    .text_color(rgb(0x6c7086))
+                    .text_sm()
+                    .child(if self.file_path.is_empty() {
+                        "No file loaded — pass a .pdf path".to_string()
+                    } else {
+                        self.file_path.clone()
+                    }),
             )
             .child(
                 // PDF page display
@@ -128,9 +140,7 @@ impl Render for PdfView {
                             .rounded(px(6.))
                             .cursor_pointer()
                             .child("◀ Prev")
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .on_mouse_down(MouseButton::Left, prev),
                     )
                     .child(
                         div()
@@ -150,9 +160,7 @@ impl Render for PdfView {
                             .rounded(px(6.))
                             .cursor_pointer()
                             .child("Next ▶")
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                cx.notify();
-                            }),
+                            .on_mouse_down(MouseButton::Left, next),
                     ),
             )
     }
@@ -161,24 +169,19 @@ impl Render for PdfView {
 /// Render all pages of a PDF to RGBA images using hayro (pure Rust)
 fn render_pdf_pages(path: &str) -> anyhow::Result<Vec<RgbaImage>> {
     let pdf_data = std::fs::read(path)?;
+    let pdf = hayro::Pdf::new(std::sync::Arc::new(pdf_data))
+        .map_err(|e| anyhow::anyhow!("Failed to parse PDF: {:?}", e))?;
     let mut pages = Vec::new();
-
-    // hayro renders PDF pages to PNG bytes
-    // Configure rendering DPI (150 gives good quality)
-    let dpi = 150.0;
-
-    // Use hayro to interpret the PDF and render each page
-    let document = hayro::Document::parse(&pdf_data)?;
-    let page_count = document.page_count();
-
-    for page_idx in 0..page_count {
-        // Render page to PNG bytes
-        let png_bytes = document.render_page(page_idx, dpi)?;
-
-        // Decode PNG → RGBA
-        let dyn_img = image::load_from_memory(&png_bytes)?;
-        pages.push(dyn_img.to_rgba8());
+    let interp = hayro::InterpreterSettings::default();
+    let render_settings = hayro::RenderSettings::default();
+    for page in pdf.pages().iter() {
+        let pixmap = hayro::render(page, &interp, &render_settings);
+        let width = pixmap.width() as u32;
+        let height = pixmap.height() as u32;
+        let rgba_data = pixmap.take_u8();
+        if let Some(img) = RgbaImage::from_raw(width, height, rgba_data) {
+            pages.push(img);
+        }
     }
-
     Ok(pages)
 }
