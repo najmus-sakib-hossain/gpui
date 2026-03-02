@@ -70,7 +70,8 @@ impl AppRoot {
         Self {
             current_tab: Tab::Chart,
             video_view:   cx.new(|cx| VideoPlayerView::new(
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                // Short (15 s) H.264 / AAC clip from Google's public sample bucket
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
                 window, cx,
             )),
             three_d_view: cx.new(|cx| ThreeDView::new(window, cx)),
@@ -79,7 +80,8 @@ impl AppRoot {
                 window, cx,
             )),
             pdf_view:     cx.new(|cx| PdfView::new(
-                "https://www.africau.edu/images/default/sample.pdf",
+                // Reliable W3C test PDF (tiny, always accessible)
+                "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
                 window, cx,
             )),
             doc_view:     cx.new(|cx| DocView::new(

@@ -19,6 +19,7 @@ gpui-component-assets = "0.5"
 # ═══════ VIDEO ═══════
 symphonia = { version = "0.5", features = ["all"] }
 openh264 = "0.6"
+mp4 = "0.14"
 
 # ═══════ 3D ═══════
 wgpu = "24"
@@ -54,3 +55,14 @@ smol = "2"
 ureq = { version = "2", features = ["tls"] }
 log = "0.4"
 env_logger = "0.11"
+
+# ─── Release profile: max perf, minimal binary ───────────────────────────────
+[profile.release]
+opt-level      = 3
+lto            = "fat"      # whole-program link-time optimisation
+codegen-units  = 1          # single codegen unit → better inlining
+panic          = "abort"    # no unwinding machinery in release
+strip          = true       # strip debug symbols
+
+[profile.release.build-override]
+opt-level = 3               # also optimise proc-macro / build-script output
